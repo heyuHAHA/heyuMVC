@@ -1,14 +1,13 @@
 package context;
 
 import context.init.AbstractContextLoaderInitializer;
+import servlet.DispatcherServlet;
 import servlet.FrameServlet;
 
-import javax.servlet.Filter;
-import javax.servlet.ServletContext;
-import javax.servlet.ServletException;
-import javax.servlet.ServletRegistration;
+import javax.servlet.*;
+import java.util.EnumSet;
 
-public class AbstractDispatcherServletInitializer extends AbstractContextLoaderInitializer {
+public abstract class AbstractDispatcherServletInitializer extends AbstractContextLoaderInitializer {
 
     public static final String DEFAULT_SERVLET_NAME = "dispatcher";
 
@@ -62,15 +61,49 @@ public class AbstractDispatcherServletInitializer extends AbstractContextLoaderI
     protected void customizeRegistration(ServletRegistration.Dynamic registration) {
     }
 
-    protected void registerServletFilter(ServletContext servletContext, Filter filter) {
+    protected FilterRegistration.Dynamic registerServletFilter(ServletContext servletContext, Filter filter) {
+        String filterName = getFilterName(filter.getClass());
+        FilterRegistration.Dynamic registration =  servletContext.addFilter(filterName,filter);
+
+        //重试机制
+        if (registration == null ) {
+            int counter = 0;
+            while (registration == null) {
+                if (counter == 100) {
+                    throw new IllegalArgumentException("Failed to register filter with name '" + filterName + "'." +
+                            "Check if there is another filter registered under the same name.");
+                }
+                registration = servletContext.addFilter(filterName + "#" + counter, filter);
+                counter++;
+            }
+        }
+
+        registration.setAsyncSupported(isAsyncSupported());
+        registration.addMappingForServletNames(getDispatcherTypes(),false, getServletName());
+        return registration;
     }
+
+    private EnumSet<DispatcherType> getDispatcherTypes() {
+        return (isAsyncSupported() ?
+                EnumSet.of(DispatcherType.REQUEST, DispatcherType.FORWARD, DispatcherType.INCLUDE, DispatcherType.ASYNC) :
+                EnumSet.of(DispatcherType.REQUEST, DispatcherType.FORWARD, DispatcherType.INCLUDE));
+    }
+
+    protected String getFilterName(Class<? extends Filter> aClass) {
+        String name = aClass.getName();
+        int dotIndex = name.lastIndexOf(".");
+        name =(dotIndex != -1 ? name.substring(dotIndex+1) : name);
+        char chars[] = name.toCharArray();
+        chars[0] =Character.toLowerCase(chars[0]);
+        return new String(chars);
+}
 
     protected Filter[] getServletFilters() {
         return null;
     }
 
     protected boolean isAsyncSupported() {
-        return false;
+        return true;
     }
 
     protected String getServletMappings() {
@@ -79,13 +112,11 @@ public class AbstractDispatcherServletInitializer extends AbstractContextLoaderI
 
 
     protected FrameServlet createDispatcherServlet(WebApplicationContext servletAppContext) {
-        return null;
+        return new DispatcherServlet(servletAppContext);
     }
 
-    protected WebApplicationContext createServletApplicationContext() {
-        return null;
+    protected abstract WebApplicationContext createServletApplicationContext();
 
-    }
 
     protected String getServletName() {
         return DEFAULT_SERVLET_NAME;

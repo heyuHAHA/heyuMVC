@@ -5,7 +5,7 @@ import context.WebApplicationContext;
 import javax.servlet.http.HttpServlet;
 import java.io.IOException;
 
-public class DispatcherServlet extends HttpServlet {
+public class DispatcherServlet extends FrameServlet {
 
 
     private MultipartResolver multipartResolver;
@@ -44,6 +44,9 @@ public class DispatcherServlet extends HttpServlet {
         } catch(IOException ex) {
             throw new IllegalStateException("Could not load 'DispatcherServlet.properties': " +ex.getMessage())
         }
+    }
+
+    public DispatcherServlet(WebApplicationContext servletAppContext) {
     }
 
     protected void initStrategies(WebApplicationContext context) {
